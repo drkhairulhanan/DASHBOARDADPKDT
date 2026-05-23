@@ -17,7 +17,7 @@
         /* Tambahan custom css untuk pastikan carta responsif */
         .chart-container {
             position: relative;
-            height: 300px;
+            height: 350px;
             width: 100%;
         }
     </style>
@@ -32,6 +32,9 @@
                     <i class="fa-solid fa-hospital-user text-2xl mr-3"></i>
                     <h1 class="text-xl font-bold truncate">Analisa Aduan PKD Tumpat</h1>
                 </div>
+                <button onclick="fetchData()" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded text-sm transition-colors flex items-center">
+                    <i class="fa-solid fa-rotate-right mr-2"></i> Segar Semula
+                </button>
             </div>
         </div>
     </nav>
@@ -58,7 +61,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 flex items-center">
                     <div class="flex-1">
-                        <p class="text-sm text-gray-500 font-medium">Jumlah Aduan</p>
+                        <p class="text-sm text-gray-500 font-medium">Jumlah Aduan Keseluruhan</p>
                         <p class="text-3xl font-bold text-gray-800" id="totalAduan">0</p>
                     </div>
                     <div class="text-blue-500 text-3xl">
@@ -94,40 +97,40 @@
                 </div>
             </div>
 
-            <!-- Charts Row 1 -->
+            <!-- Charts Row 1: Trend Tahunan & Kategori -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Status Aduan Chart -->
+                <!-- Tren Tahunan Chart -->
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Status Aduan</h2>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Tren Aduan Tahunan</h2>
                     <div class="chart-container">
-                        <canvas id="statusChart"></canvas>
+                        <canvas id="tahunanChart"></canvas>
                     </div>
                 </div>
                 
                 <!-- Kategori Aduan Chart -->
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Kategori Aduan</h2>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Kategori Aduan Berbanding Tahun</h2>
                     <div class="chart-container">
                         <canvas id="kategoriChart"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Row 2 -->
+            <!-- Charts Row 2: Trend Bulanan & Fasiliti -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Tren Bulanan Chart -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Tren Aduan Bulanan (Perbandingan Tahun)</h2>
+                    <div class="chart-container">
+                        <canvas id="bulanChart"></canvas>
+                    </div>
+                </div>
+
                 <!-- Fasiliti Chart -->
                 <div class="bg-white rounded-lg shadow p-4">
                     <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Aduan Mengikut Fasiliti Kesihatan</h2>
                     <div class="chart-container">
                         <canvas id="fasilitiChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Tren Bulanan Chart -->
-                <div class="bg-white rounded-lg shadow p-4">
-                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Tren Aduan Bulanan</h2>
-                    <div class="chart-container">
-                        <canvas id="bulanChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -136,7 +139,7 @@
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                     <h2 class="text-lg font-semibold text-gray-700">Senarai Terperinci Aduan</h2>
-                    <span class="text-xs font-medium bg-teal-100 text-teal-800 py-1 px-2 rounded-full">Scroll ke kanan (Telefon Pintar)</span>
+                    <span class="text-xs font-medium bg-teal-100 text-teal-800 py-1 px-2 rounded-full">Tatal (Scroll) ke kanan -></span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -163,19 +166,34 @@
     <!-- Papan Pemuka Logik JS -->
     <script>
         const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSlRBWaEXNES_Gd6LCTDS0tMxvZKSEpcwC9aAf4bqU7d5CqhuyMIlfnk7vPMHLJ9cynlOftvPmJWPTw/pub?output=csv';
+        
+        // Simpan instance chart supaya boleh di-destroy sebelum dilukis semula
+        let charts = {};
+
+        // Warna yang pelbagai untuk carta
+        const colorPalette = [
+            '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+            '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', 
+            '#06b6d4', '#d946ef', '#64748b', '#eab308', '#a855f7'
+        ];
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchData();
         });
 
         function fetchData() {
+            // Tunjuk loading, sorok dashboard/error
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('dashboardContent').classList.add('hidden');
+            document.getElementById('errorMessage').classList.add('hidden');
+
             Papa.parse(CSV_URL, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
-                // Mengemaskan nama header sekiranya ada 'space' berlebihan
+                // Pastikan header bersih dari BOM character atau space berlebihan
                 transformHeader: function(h) {
-                    return h.trim();
+                    return h.trim().replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/,"");
                 },
                 complete: function(results) {
                     const data = results.data;
@@ -204,44 +222,64 @@
 
         // Fungsi utama memproses data kepada bentuk analisa
         function processData(data) {
-            // 1. Kira ringkasan (Summary)
+            // 1. Pembolehubah ringkasan
             let totalSelesai = 0;
             let totalDalamTindakan = 0;
             let fasilitiSet = new Set();
             
-            // Objek untuk Chart Data
-            let statusCount = {};
-            let kategoriCount = {};
+            // 2. Pembolehubah untuk Chart Data
+            let tahunanCount = {};
+            let kategoriData = {}; // Format: { 'Kategori A': {'2024': 5, '2025': 2} }
             let fasilitiCount = {};
-            let bulanCount = {};
+            let bulanData = {};    // Format: { '2024': {'Jan': 2, 'Feb': 3} }
+
+            let uniqueYears = new Set();
+            let uniqueMonths = new Set();
+            let uniqueCategories = new Set();
 
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = '';
 
-            data.forEach((row, index) => {
+            data.forEach((row) => {
                 // Ekstrak data berdasarkan header yang ditetapkan
-                const tahun = row['Tahun'] || '-';
-                const bulan = row['Bulan'] || '-';
+                const tahun = row['Tahun'] ? row['Tahun'].trim() : 'Tiada';
+                const bulan = row['Bulan'] ? row['Bulan'].trim() : 'Tiada';
                 const sumber = row['Sumber Aduan'] || '-';
-                const kategori = row['Kategori Aduan'] || 'Tidak Dinyatakan';
-                const fasiliti = row['Fasiliti Kesihatan'] || 'Tidak Dinyatakan';
+                const kategori = row['Kategori Aduan'] ? row['Kategori Aduan'].trim() : 'Tidak Dinyatakan';
+                const fasiliti = row['Fasiliti Kesihatan'] ? row['Fasiliti Kesihatan'].trim() : 'Tidak Dinyatakan';
                 const kaitan = row['Kaitan dengan Petugas Kesihatan'] || '-';
                 const kakitangan = row['Kakitangan Terlibat'] || '-';
                 const status = (row['Status'] || 'Tiada Status').trim();
 
-                // Kemaskini Stats
+                // Abaikan rekod yang kosong/invalid
+                if(tahun === '' || tahun === 'Tiada' || !tahun) return;
+
+                // Set uniques
+                uniqueYears.add(tahun);
+                uniqueMonths.add(bulan);
+                uniqueCategories.add(kategori);
+
+                // Kemaskini Stats Keseluruhan
                 if (status.toLowerCase().includes('selesai')) totalSelesai++;
                 else totalDalamTindakan++;
                 
-                if (fasiliti !== 'Tidak Dinyatakan' && fasiliti !== '-') fasilitiSet.add(fasiliti);
+                if (fasiliti !== 'Tidak Dinyatakan' && fasiliti !== '-' && fasiliti !== '') fasilitiSet.add(fasiliti);
 
-                // Pengumpulan Data Untuk Carta
-                statusCount[status] = (statusCount[status] || 0) + 1;
-                kategoriCount[kategori] = (kategoriCount[kategori] || 0) + 1;
-                fasilitiCount[fasiliti] = (fasilitiCount[fasiliti] || 0) + 1;
-                
-                const bulanTahun = `${bulan} ${tahun}`;
-                bulanCount[bulanTahun] = (bulanCount[bulanTahun] || 0) + 1;
+                // Data Tren Tahunan
+                tahunanCount[tahun] = (tahunanCount[tahun] || 0) + 1;
+
+                // Data Kategori berbanding Tahun
+                if (!kategoriData[kategori]) kategoriData[kategori] = {};
+                kategoriData[kategori][tahun] = (kategoriData[kategori][tahun] || 0) + 1;
+
+                // Data Tren Bulanan berbanding Tahun
+                if (!bulanData[tahun]) bulanData[tahun] = {};
+                bulanData[tahun][bulan] = (bulanData[tahun][bulan] || 0) + 1;
+
+                // Data Fasiliti
+                if (fasiliti !== 'Tidak Dinyatakan' && fasiliti !== '-' && fasiliti !== '') {
+                    fasilitiCount[fasiliti] = (fasilitiCount[fasiliti] || 0) + 1;
+                }
 
                 // Masukkan dalam Jadual HTML
                 const statusColor = status.toLowerCase().includes('selesai') 
@@ -264,85 +302,146 @@
                 tableBody.appendChild(tr);
             });
 
-            // Update DOM Summary
-            document.getElementById('totalAduan').innerText = data.length;
+            // Update DOM Summary Cards
+            document.getElementById('totalAduan').innerText = totalSelesai + totalDalamTindakan;
             document.getElementById('totalSelesai').innerText = totalSelesai;
             document.getElementById('totalDalamTindakan').innerText = totalDalamTindakan;
             document.getElementById('totalFasiliti').innerText = fasilitiSet.size;
 
+            // Sort Arrays
+            const sortedYears = Array.from(uniqueYears).sort();
+            // Standard Malay Months array to ensure correct order
+            const susunanBulan = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            const sortedMonths = Array.from(uniqueMonths).sort((a, b) => susunanBulan.indexOf(a) - susunanBulan.indexOf(b));
+
             // Render Charts
-            renderStatusChart(statusCount);
-            renderKategoriChart(kategoriCount);
+            renderTahunanChart(tahunanCount, sortedYears);
+            renderKategoriChart(kategoriData, sortedYears, Array.from(uniqueCategories));
+            renderBulanChart(bulanData, sortedYears, sortedMonths);
             renderFasilitiChart(fasilitiCount);
-            renderBulanChart(bulanCount);
         }
 
-        // --- Carta Status (Doughnut) ---
-        function renderStatusChart(dataObj) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'doughnut',
+        // Helper untuk destroy chart lama sebelum re-render
+        function resetChart(canvasId) {
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+        }
+
+        // --- Carta 1: Trend Tahunan (Bar) ---
+        function renderTahunanChart(dataObj, sortedYears) {
+            resetChart('tahunanChart');
+            const ctx = document.getElementById('tahunanChart').getContext('2d');
+            
+            const dataValues = sortedYears.map(year => dataObj[year] || 0);
+
+            charts['tahunanChart'] = new Chart(ctx, {
+                type: 'bar',
                 data: {
-                    labels: Object.keys(dataObj),
+                    labels: sortedYears,
                     datasets: [{
-                        data: Object.values(dataObj),
-                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'],
-                        borderWidth: 1
+                        label: 'Jumlah Aduan',
+                        data: dataValues,
+                        backgroundColor: '#0d9488', // Teal 600
+                        borderRadius: 4
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom' } }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
                 }
             });
         }
 
-        // --- Carta Kategori (Bar Mendatar) ---
-        function renderKategoriChart(dataObj) {
+        // --- Carta 2: Kategori Ikut Tahun (Grouped Bar - Pelbagai Warna) ---
+        function renderKategoriChart(kategoriData, sortedYears, uniqueCategories) {
+            resetChart('kategoriChart');
             const ctx = document.getElementById('kategoriChart').getContext('2d');
             
-            // Sort data dari tertinggi ke terendah
-            const sortedKeys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]);
-            const sortedValues = sortedKeys.map(k => dataObj[k]);
+            // Siapkan datasets untuk setiap kategori
+            const datasets = uniqueCategories.map((kat, index) => {
+                return {
+                    label: kat,
+                    data: sortedYears.map(year => kategoriData[kat][year] || 0),
+                    backgroundColor: colorPalette[index % colorPalette.length],
+                    borderRadius: 2
+                };
+            });
 
-            new Chart(ctx, {
+            charts['kategoriChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedYears,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: 10} } } 
+                    },
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { stacked: false } // False untuk grouped bar (bersebelahan), tukar 'true' jika nak stacked
+                    }
+                }
+            });
+        }
+
+        // --- Carta 3: Tren Bulanan Banding Tahun (Multi-line Chart) ---
+        function renderBulanChart(bulanData, sortedYears, sortedMonths) {
+            resetChart('bulanChart');
+            const ctx = document.getElementById('bulanChart').getContext('2d');
+            
+            const datasets = sortedYears.map((year, index) => {
+                return {
+                    label: `Tahun ${year}`,
+                    data: sortedMonths.map(month => bulanData[year] ? (bulanData[year][month] || 0) : 0),
+                    borderColor: colorPalette[(index + 3) % colorPalette.length],
+                    backgroundColor: colorPalette[(index + 3) % colorPalette.length],
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.3
+                };
+            });
+
+            charts['bulanChart'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedMonths,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        // --- Carta 4: Fasiliti (Bar - Pelbagai Warna setiap fasiliti) ---
+        function renderFasilitiChart(dataObj) {
+            resetChart('fasilitiChart');
+            const ctx = document.getElementById('fasilitiChart').getContext('2d');
+            
+            // Sort data dari tertinggi ke terendah & limit top 15
+            const sortedKeys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]).slice(0, 15);
+            const sortedValues = sortedKeys.map(k => dataObj[k]);
+            
+            // Sediakan array warna mengikut jumlah bar
+            const bgColors = sortedKeys.map((_, index) => colorPalette[index % colorPalette.length]);
+
+            charts['fasilitiChart'] = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: sortedKeys,
                     datasets: [{
                         label: 'Jumlah Aduan',
                         data: sortedValues,
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    indexAxis: 'y', // Jadikan bar mendatar (bagus untuk nama kategori panjang)
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
-                }
-            });
-        }
-
-        // --- Carta Fasiliti (Bar Menegak) ---
-        function renderFasilitiChart(dataObj) {
-            const ctx = document.getElementById('fasilitiChart').getContext('2d');
-            
-            // Limit paparan kepada top 10 fasiliti supaya tak serabut di skrin telefon
-            const sortedKeys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]).slice(0, 10);
-            const sortedValues = sortedKeys.map(k => dataObj[k]);
-
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sortedKeys,
-                    datasets: [{
-                        label: 'Kekerapan',
-                        data: sortedValues,
-                        backgroundColor: '#14b8a6',
+                        backgroundColor: bgColors,
                         borderRadius: 4
                     }]
                 },
@@ -352,34 +451,8 @@
                     plugins: { legend: { display: false } },
                     scales: { 
                         y: { beginAtZero: true, ticks: { precision: 0 } },
-                        x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } }
+                        x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45, font: {size: 10} } }
                     }
-                }
-            });
-        }
-
-        // --- Carta Bulan/Tren (Garisan) ---
-        function renderBulanChart(dataObj) {
-            const ctx = document.getElementById('bulanChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Object.keys(dataObj),
-                    datasets: [{
-                        label: 'Jumlah Aduan',
-                        data: Object.values(dataObj),
-                        borderColor: '#8b5cf6',
-                        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
                 }
             });
         }
