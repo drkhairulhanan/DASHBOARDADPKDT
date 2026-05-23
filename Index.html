@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Analisa Aduan PKD Tumpat</title>
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse untuk membaca CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Chart.js untuk Graf & Carta -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome untuk Ikon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Tambahan custom css untuk pastikan carta responsif */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+
+    <!-- Navbar -->
+    <nav class="bg-teal-700 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-hospital-user text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold truncate">Analisa Aduan PKD Tumpat</h1>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Loading State -->
+        <div id="loadingIndicator" class="flex flex-col items-center justify-center py-20">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-teal-600 mb-4"></i>
+            <p class="text-lg text-gray-600">Sedang memuat turun data aduan...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <strong class="font-bold">Ralat!</strong>
+            <span class="block sm:inline" id="errorText">Gagal memuat turun data. Sila semak pautan CSV.</span>
+        </div>
+
+        <!-- Dashboard Content (Hidden initially) -->
+        <div id="dashboardContent" class="hidden space-y-6">
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 flex items-center">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500 font-medium">Jumlah Aduan</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalAduan">0</p>
+                    </div>
+                    <div class="text-blue-500 text-3xl">
+                        <i class="fa-solid fa-file-lines"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 flex items-center">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500 font-medium">Selesai</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalSelesai">0</p>
+                    </div>
+                    <div class="text-green-500 text-3xl">
+                        <i class="fa-solid fa-check-circle"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 flex items-center">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500 font-medium">Dalam Tindakan</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalDalamTindakan">0</p>
+                    </div>
+                    <div class="text-yellow-500 text-3xl">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 flex items-center">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500 font-medium">Fasiliti Terlibat</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalFasiliti">0</p>
+                    </div>
+                    <div class="text-red-500 text-3xl">
+                        <i class="fa-solid fa-house-medical-flag"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Status Aduan Chart -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Status Aduan</h2>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Kategori Aduan Chart -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Kategori Aduan</h2>
+                    <div class="chart-container">
+                        <canvas id="kategoriChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Fasiliti Chart -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Aduan Mengikut Fasiliti Kesihatan</h2>
+                    <div class="chart-container">
+                        <canvas id="fasilitiChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tren Bulanan Chart -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">Tren Aduan Bulanan</h2>
+                    <div class="chart-container">
+                        <canvas id="bulanChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table Section -->
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h2 class="text-lg font-semibold text-gray-700">Senarai Terperinci Aduan</h2>
+                    <span class="text-xs font-medium bg-teal-100 text-teal-800 py-1 px-2 rounded-full">Scroll ke kanan (Telefon Pintar)</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100 text-gray-600">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Tahun/Bulan</th>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Sumber</th>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Kategori</th>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Fasiliti Kesihatan</th>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Petugas Terlibat</th>
+                                <th scope="col" class="px-4 py-3 text-left font-medium uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Rows will be injected here via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Papan Pemuka Logik JS -->
+    <script>
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSlRBWaEXNES_Gd6LCTDS0tMxvZKSEpcwC9aAf4bqU7d5CqhuyMIlfnk7vPMHLJ9cynlOftvPmJWPTw/pub?output=csv';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+        });
+
+        function fetchData() {
+            Papa.parse(CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                // Mengemaskan nama header sekiranya ada 'space' berlebihan
+                transformHeader: function(h) {
+                    return h.trim();
+                },
+                complete: function(results) {
+                    const data = results.data;
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    
+                    if (data && data.length > 0) {
+                        document.getElementById('dashboardContent').classList.remove('hidden');
+                        processData(data);
+                    } else {
+                        showError("Data kosong atau format CSV tidak padan.");
+                    }
+                },
+                error: function(err) {
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    showError("Gagal menyambung ke pautan CSV Google Sheets. Pastikan pautan diterbitkan untuk web (Published to web).");
+                    console.error("PapaParse Error:", err);
+                }
+            });
+        }
+
+        function showError(message) {
+            const errDiv = document.getElementById('errorMessage');
+            document.getElementById('errorText').innerText = message;
+            errDiv.classList.remove('hidden');
+        }
+
+        // Fungsi utama memproses data kepada bentuk analisa
+        function processData(data) {
+            // 1. Kira ringkasan (Summary)
+            let totalSelesai = 0;
+            let totalDalamTindakan = 0;
+            let fasilitiSet = new Set();
+            
+            // Objek untuk Chart Data
+            let statusCount = {};
+            let kategoriCount = {};
+            let fasilitiCount = {};
+            let bulanCount = {};
+
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+
+            data.forEach((row, index) => {
+                // Ekstrak data berdasarkan header yang ditetapkan
+                const tahun = row['Tahun'] || '-';
+                const bulan = row['Bulan'] || '-';
+                const sumber = row['Sumber Aduan'] || '-';
+                const kategori = row['Kategori Aduan'] || 'Tidak Dinyatakan';
+                const fasiliti = row['Fasiliti Kesihatan'] || 'Tidak Dinyatakan';
+                const kaitan = row['Kaitan dengan Petugas Kesihatan'] || '-';
+                const kakitangan = row['Kakitangan Terlibat'] || '-';
+                const status = (row['Status'] || 'Tiada Status').trim();
+
+                // Kemaskini Stats
+                if (status.toLowerCase().includes('selesai')) totalSelesai++;
+                else totalDalamTindakan++;
+                
+                if (fasiliti !== 'Tidak Dinyatakan' && fasiliti !== '-') fasilitiSet.add(fasiliti);
+
+                // Pengumpulan Data Untuk Carta
+                statusCount[status] = (statusCount[status] || 0) + 1;
+                kategoriCount[kategori] = (kategoriCount[kategori] || 0) + 1;
+                fasilitiCount[fasiliti] = (fasilitiCount[fasiliti] || 0) + 1;
+                
+                const bulanTahun = `${bulan} ${tahun}`;
+                bulanCount[bulanTahun] = (bulanCount[bulanTahun] || 0) + 1;
+
+                // Masukkan dalam Jadual HTML
+                const statusColor = status.toLowerCase().includes('selesai') 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-yellow-100 text-yellow-800';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap"><div class="font-medium text-gray-900">${tahun}</div><div class="text-xs text-gray-500">${bulan}</div></td>
+                    <td class="px-4 py-3">${sumber}</td>
+                    <td class="px-4 py-3">${kategori}</td>
+                    <td class="px-4 py-3 font-medium text-teal-700">${fasiliti}</td>
+                    <td class="px-4 py-3"><div class="text-gray-900">${kaitan}</div><div class="text-xs text-gray-500">${kakitangan}</div></td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">
+                            ${status}
+                        </span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // Update DOM Summary
+            document.getElementById('totalAduan').innerText = data.length;
+            document.getElementById('totalSelesai').innerText = totalSelesai;
+            document.getElementById('totalDalamTindakan').innerText = totalDalamTindakan;
+            document.getElementById('totalFasiliti').innerText = fasilitiSet.size;
+
+            // Render Charts
+            renderStatusChart(statusCount);
+            renderKategoriChart(kategoriCount);
+            renderFasilitiChart(fasilitiCount);
+            renderBulanChart(bulanCount);
+        }
+
+        // --- Carta Status (Doughnut) ---
+        function renderStatusChart(dataObj) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(dataObj),
+                    datasets: [{
+                        data: Object.values(dataObj),
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        // --- Carta Kategori (Bar Mendatar) ---
+        function renderKategoriChart(dataObj) {
+            const ctx = document.getElementById('kategoriChart').getContext('2d');
+            
+            // Sort data dari tertinggi ke terendah
+            const sortedKeys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]);
+            const sortedValues = sortedKeys.map(k => dataObj[k]);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys,
+                    datasets: [{
+                        label: 'Jumlah Aduan',
+                        data: sortedValues,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // Jadikan bar mendatar (bagus untuk nama kategori panjang)
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        // --- Carta Fasiliti (Bar Menegak) ---
+        function renderFasilitiChart(dataObj) {
+            const ctx = document.getElementById('fasilitiChart').getContext('2d');
+            
+            // Limit paparan kepada top 10 fasiliti supaya tak serabut di skrin telefon
+            const sortedKeys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]).slice(0, 10);
+            const sortedValues = sortedKeys.map(k => dataObj[k]);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys,
+                    datasets: [{
+                        label: 'Kekerapan',
+                        data: sortedValues,
+                        backgroundColor: '#14b8a6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } }
+                    }
+                }
+            });
+        }
+
+        // --- Carta Bulan/Tren (Garisan) ---
+        function renderBulanChart(dataObj) {
+            const ctx = document.getElementById('bulanChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(dataObj),
+                    datasets: [{
+                        label: 'Jumlah Aduan',
+                        data: Object.values(dataObj),
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
